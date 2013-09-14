@@ -68,13 +68,26 @@ let get_empty_image ?color:(color = get_rgba 0 0 0) x y = (Rgb24.make x y color 
 
 let save_image filename img = Png.save filename [] img;;
 
-let compute_int_mandelbrot x y =
+let compute_int_perso x y =
   let z = ref czero in
   let k = ref 0 in
   let c = {x = x; y = y} in
   while !k < g_max_range && cabscarre (!z) < 4.
   do
     z := (cdiv {x = 1.2 ; y = 0.} (cplus (ctime !z !z) (c)));
+    incr k;
+  done;
+  (* Printf.printf "%d\n" !k; *)
+  !k
+;;
+
+let compute_int_mandelbrot x y =
+  let z = ref czero in
+  let k = ref 0 in
+  let c = {x = x; y = y} in
+  while !k < g_max_range && cabscarre (!z) < 4.
+  do
+    z := cplus (ctime !z !z) (c);
     incr k;
   done;
   (* Printf.printf "%d\n" !k; *)
@@ -131,7 +144,7 @@ let save_frac img =
 ;;
 
 
-let display_frac (x1, y1) (x2, y2) res =
+let display_frac (x1, y1) (x2, y2) res save_res =
   let x1 = ref x1 in
   let x2 = ref x2 in
   let y1 = ref y1 in
@@ -148,12 +161,42 @@ let display_frac (x1, y1) (x2, y2) res =
     Printf.printf "Rectangle; res x = (%f, %f) (%f, %f) %d\n" !x1 !y1 !x2 !y2 res;
     Graphics.draw_string (Printf.sprintf "Rectangle; res x = (%f, %f) (%f, %f) %d" !x1 !y1 !x2 !y2 res);
     let (size_x,size_y) = (!img.Rgb24.width, !img.Rgb24.height) in
-    let status = Graphics.wait_next_event [Graphics.Button_down ; Graphics.Key_pressed] in
+    let status =
+      let stay_in = ref true in
+      let status = ref (Graphics.wait_next_event [Graphics.Button_down ; Graphics.Key_pressed ; Graphics.Mouse_motion] ) in
+      while !stay_in
+      do
+	(* We save the picture *)
+	if !status.Graphics.key = 's'
+	then
+	  begin
+	    save_frac( fractal_coord (!x1, !y1) (!x2, !y2) save_res);
+	    Printf.printf "Fractal saved !%!";
+	    status := Graphics.wait_next_event [Graphics.Button_down ; Graphics.Key_pressed ; Graphics.Mouse_motion] ;
+	  end
+	else if !status.Graphics.button
+	then
+	  stay_in := false
+	else
+	  begin
+	    (* Printf.printf "the mouse is moving...%!"; *)
+	    (* La souris bouge on actualise les coordonnées : *)
+	    let (px1,py1) = (!status.Graphics.mouse_x, !status.Graphics.mouse_y) in
+	    let tx1 = !x1 +. (float_of_int px1) /. (float_of_int size_x) *. (!x2 -. !x1)
+	    and ty1 = !y1 +. (1. -. (float_of_int py1) /. (float_of_int size_y)) *. (!y2 -. !y1);
+	    in
+	    (* Graphics.moveto 10 10; *)
+	    (* Graphics.draw_string (Printf.sprintf "Current : (%f, %f)" tx1 ty1); *)
+	    Printf.printf "Current : (%f, %f)\n%!" tx1 ty1;
+	    status := Graphics.wait_next_event [Graphics.Button_down ; Graphics.Key_pressed ; Graphics.Mouse_motion] ;
+
+	  end;
+      done;
+      !status;
+    in
     let (px1,py1) = (status.Graphics.mouse_x, status.Graphics.mouse_y) in
     let status = Graphics.wait_next_event [Graphics.Button_down ; Graphics.Key_pressed] in
     let (px2,py2) = (status.Graphics.mouse_x, status.Graphics.mouse_y) in
-    let dx = (!x2 -. !x1) /. (float_of_int size_x) in
-    let dy = (!y2 -. !y1) /. (float_of_int size_y) in
     x1 := !x1 +. (float_of_int px1) /. (float_of_int size_x) *. (!x2 -. !x1);
     x2 := !x1 +. (float_of_int px2) /. (float_of_int size_x) *. (!x2 -. !x1);
     y1 := !y1 +. (1. -. (float_of_int py1) /. (float_of_int size_y)) *. (!y2 -. !y1);
@@ -168,7 +211,7 @@ let display_frac (x1, y1) (x2, y2) res =
 save_frac( fractal_coord (-1.5, -1.) (1.2,1.) 100);;
 
 let f = fractal_coord (-1.5, -1.) (1.2,1.) 100;;
-display_frac (-1.5, -1.) (1.2,1.) 500;;
+display_frac (-1.5, -1.) (1.2,1.) 1000 5000;;
 
 
 (* let () = *)
