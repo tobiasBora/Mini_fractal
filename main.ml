@@ -3,6 +3,8 @@
 
 type complex_number = {x: float; y:float};;
 
+let rgba_mode = false;;
+
 let g_size_x = 2000;;
 let g_size_y = 2000;;
 let g_filename = "out.png";;
@@ -45,7 +47,11 @@ let cabscarre a = (fplus (ftime a.x a.x ) (ftime a.y a.y));;
 
 type color = Color.rgba;;
 
-let get_rgba ?a:(a=255) r g b = { Color.color = {Color.r = r; Color.g = g ; Color.b = b} ; alpha = a} ;;
+
+(* Comment/uncomment the good rgb mode if you want or not rgba *)
+(* let get_rgba ?a:(a=255) r g b = { Color.color = {Color.r = r; Color.g = g ; Color.b = b} ; alpha = a} ;; *)
+
+let get_rgba r g b = {Color.r = r; Color.g = g ; Color.b = b};;
 
 (* Mode de couleur *)
 let get_color_from_int max min n =
@@ -54,7 +60,11 @@ let get_color_from_int max min n =
 
 (* Moteur *)
 
-let get_empty_image ?color:(color = get_rgba 0 0 0) x y = (Rgba32.make x y color );;
+(* Change this one too if you want or not rgba *)
+(* let get_empty_image ?color:(color = get_rgba 0 0 0) x y = (Rgba32.make x y color );; *)
+
+let get_empty_image ?color:(color = get_rgba 0 0 0) x y = (Rgb24.make x y color );;
+
 
 let save_image filename img = Png.save filename [] img;;
 
@@ -72,7 +82,9 @@ let compute_int_mandelbrot x y =
 ;;
 
 let fill_img img x0 y0 dx dy compute_int =
-  let (x,y) = (img.Rgba32.width, img.Rgba32.height) in
+  (* And this one for rgba *)
+  let (x,y) = (img.Rgb24.width, img.Rgb24.height) in
+  (* let (x,y) = (img.Rgba32.width, img.Rgba32.height) in *)
   let int_img = Array.make_matrix x y 0 in
   (* Dans un premier temps on rempli un tableau avec des entiers *)
   let max = ref 0 in
@@ -90,15 +102,14 @@ let fill_img img x0 y0 dx dy compute_int =
     done;
   done;
   (* On convertit ensuite ce tableau en couleur *)
-  Printf.printf "Conversion...";
+  (* Printf.printf "Conversion..."; *)
   for i = 0 to x - 1
   do
     for j = 0 to y - 1
     do
-      (* Printf.printf "max : %d; min : %d; nb : %d\n" !max !min int_img.(i).(j); *)
-      let color = get_color_from_int !max !min int_img.(i).(j) in
-      (* Printf.printf "color : %d %d %d\n" color.Color.color.Color.r color.Color.color.Color.g color.Color.color.Color.b; *)
-      Rgba32.set img i j ( get_color_from_int !max !min int_img.(i).(j) )
+      (* And this one... for rgba *)
+      Rgb24.set img i j ( get_color_from_int !max !min int_img.(i).(j) );
+      (* Rgba32.set img i j ( get_color_from_int !max !min int_img.(i).(j) ) *)
     done;
   done;
 ;;
@@ -110,11 +121,55 @@ let fractal_coord (x1,y1) (x2,y2) ?size_y:(size_y = -1) size_x =
   let dx = (x2 -. x1) /. (float_of_int size_x) in
   let dy = (y2 -. y1) /. (float_of_int size_y) in
   fill_img img x1 y1 dx dy compute_int_mandelbrot;
-  save_image g_filename (Images.Rgba32 img);
+  img;
+;;
+
+let save_frac img =
+  (* And this one for rgba *)
+  (* save_image g_filename (Images.Rgba32 img); *)
+  save_image g_filename (Images.Rgb24 img);
 ;;
 
 
-fractal_coord (-1.5, -1.) (1.2,1.) 1000;;
+let display_frac (x1, y1) (x2, y2) res =
+  let x1 = ref x1 in
+  let x2 = ref x2 in
+  let y1 = ref y1 in
+  let y2 = ref y2 in
+  let img = ref (fractal_coord (!x1, !y1) (!x2, !y2) res) in
+  Printf.printf "Displaying";
+  Graphics.open_graph "";
+  (* And this one for rgba *)
+  (* Graphic_image.draw_image (Images.Rgba32 img) 0 0; *)
+  while true
+  do
+    Graphics.open_graph "";
+    Graphic_image.draw_image (Images.Rgb24 !img) 0 0;
+    Printf.printf "Rectangle; res x = (%f, %f) (%f, %f) %d\n" !x1 !y1 !x2 !y2 res;
+    Graphics.draw_string (Printf.sprintf "Rectangle; res x = (%f, %f) (%f, %f) %d" !x1 !y1 !x2 !y2 res);
+    let (size_x,size_y) = (!img.Rgb24.width, !img.Rgb24.height) in
+    let status = Graphics.wait_next_event [Graphics.Button_down ; Graphics.Key_pressed] in
+    let (px1,py1) = (status.Graphics.mouse_x, status.Graphics.mouse_y) in
+    let status = Graphics.wait_next_event [Graphics.Button_down ; Graphics.Key_pressed] in
+    let (px2,py2) = (status.Graphics.mouse_x, status.Graphics.mouse_y) in
+    let dx = (!x2 -. !x1) /. (float_of_int size_x) in
+    let dy = (!y2 -. !y1) /. (float_of_int size_y) in
+    x1 := !x1 +. (float_of_int px1) /. (float_of_int size_x) *. (!x2 -. !x1);
+    x2 := !x1 +. (float_of_int px2) /. (float_of_int size_x) *. (!x2 -. !x1);
+    y1 := !y1 +. (1. -. (float_of_int py1) /. (float_of_int size_y)) *. (!y2 -. !y1);
+    y2 := !y1 +. (1. -. (float_of_int py2) /. (float_of_int size_y)) *. (!y2 -. !y1);
+    
+    img := fractal_coord (!x1, !y1) (!x2, !y2) res;
+    
+  done;
+;;
+
+
+save_frac( fractal_coord (-1.5, -1.) (1.2,1.) 100);;
+
+let f = fractal_coord (-1.5, -1.) (1.2,1.) 100;;
+display_frac (-1.5, -1.) (1.2,1.) 500;;
+
 
 (* let () = *)
   (* let img = get_empty_image g_size_x g_size_y in *)

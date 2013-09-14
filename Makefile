@@ -4,7 +4,7 @@ LDFLAGS=
 CFLAGS=
 MAIN=main.ml
 SOURCES=
-PACKAGES=unix camlimages.png
+PACKAGES=unix camlimages.png graphics camlimages.graphics
 
 OBJECTS=$(SOURCES)
 OUTPUT=$(MAIN:.ml=.bin)
