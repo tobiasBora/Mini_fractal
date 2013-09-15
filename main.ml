@@ -1,6 +1,29 @@
 (* This program aims to display fractales *)
-(* #require "camlimages.png";; *)
+(* If you want to run the program, if you are on Linux 64bits you can
+  try to run ./main.bin.
 
+  If it doesn't work, if you are on Windows, or if you want to compile
+  the program, please install the library camlimages (with opam for
+  example, and if you are new with opam don't forget to put
+    . /home/<username>/.opam/opam-init/init.sh > /dev/null 2> /dev/null || true
+    eval `opam config -env`
+  in your ~/.bashrc if you are on Linux and reboot) and then run :
+   $ make
+  to compile (make sure you have ocamlfind installed, and that camlimages appear when you run ocamlfind list), and then run the program with
+   $ ./main.bin
+
+   In the graphic mode you can save the fractal in high resolution with the key s (please wait for the message "Fractal saved" in command mode).
+   
+   This program is a very little project I made during one afternoon,
+   I just needed it to discover the world of fractals and make
+   beautiful pictures. I'll improve it later when I'll have time (for
+   example by adding a way to configure it in the command line).
+   
+*)
+
+(* Uncomment if you run in toplevel  *)
+(* #require "camlimages.png";; *)
+(* #require "camlimages.graphics";; *)
 type complex_number = {x: float; y:float};;
 
 let rgba_mode = false;;
@@ -8,8 +31,10 @@ let rgba_mode = false;;
 let g_size_x = 2000;;
 let g_size_y = 2000;;
 let g_filename = "out.png";;
+(* Max number of iteration *)
 let g_max_range = 200;;
-(* Float handle *)
+
+(* Float handle, it can be easily configurated *)
 let zero = 0.0;;
 let un = 1.0;;
 let deux = 2.0;;
@@ -22,6 +47,7 @@ let fsqrt = sqrt ;;
 let fpuiss = ( ** );;
 
 (*
+  If you want to run it with arbitrary precision :
 let zero = Num.num_of_int 0;;
 let fplus = Num.add_num;;
 let fopposed = Num.minus_num;;
@@ -43,7 +69,7 @@ let ccarre a = { x = (fminus (ftime a.x a.x) (ftime a.y a.y));
 		 y = (ftime 2.0 (ftime a.x a.y) )};;
 let cabscarre a = (fplus (ftime a.x a.x ) (ftime a.y a.y));;
 
-(* Diverses fonctions *)
+(* Some functions for color *)
 
 type color = Color.rgba;;
 
@@ -68,6 +94,7 @@ let get_empty_image ?color:(color = get_rgba 0 0 0) x y = (Rgb24.make x y color 
 
 let save_image filename img = Png.save filename [] img;;
 
+(* My mandelbrot version *)
 let compute_int_perso x y =
   let z = ref czero in
   let k = ref 0 in
@@ -77,7 +104,6 @@ let compute_int_perso x y =
     z := (cdiv {x = 1.2 ; y = 0.} (cplus (ctime !z !z) (c)));
     incr k;
   done;
-  (* Printf.printf "%d\n" !k; *)
   !k
 ;;
 
@@ -90,16 +116,16 @@ let compute_int_mandelbrot x y =
     z := cplus (ctime !z !z) (c);
     incr k;
   done;
-  (* Printf.printf "%d\n" !k; *)
   !k
 ;;
 
+(* This function try all points and convert it in a picture *)
 let fill_img img x0 y0 dx dy compute_int =
   (* And this one for rgba *)
   let (x,y) = (img.Rgb24.width, img.Rgb24.height) in
   (* let (x,y) = (img.Rgba32.width, img.Rgba32.height) in *)
   let int_img = Array.make_matrix x y 0 in
-  (* Dans un premier temps on rempli un tableau avec des entiers *)
+  (* In a first time we add iteration numbers in the array *)
   let max = ref 0 in
   let min = ref max_int in
   for i = 0 to x - 1
@@ -114,55 +140,57 @@ let fill_img img x0 y0 dx dy compute_int =
       
     done;
   done;
-  (* On convertit ensuite ce tableau en couleur *)
-  (* Printf.printf "Conversion..."; *)
+  (* We convert this array in color *)
   for i = 0 to x - 1
   do
     for j = 0 to y - 1
     do
       (* And this one... for rgba *)
-      Rgb24.set img i j ( get_color_from_int !max !min int_img.(i).(j) );
       (* Rgba32.set img i j ( get_color_from_int !max !min int_img.(i).(j) ) *)
+      Rgb24.set img i j ( get_color_from_int !max !min int_img.(i).(j) );
     done;
   done;
 ;;
 
-let fractal_coord (x1,y1) (x2,y2) ?size_y:(size_y = -1) size_x =
+(* The main function to call to compute a fractal *)
+let fractal_coord (x1,y1) (x2,y2) ?compute_int:(compute_int = compute_int_mandelbrot) ?size_y:(size_y = -1) size_x =
   let size_y = if size_y <> -1 then size_y
     else (int_of_float ((float_of_int size_x) *. (y2 -. y1) /. (x2 -. x1))) in
   let img = get_empty_image size_x size_y in
   let dx = (x2 -. x1) /. (float_of_int size_x) in
   let dy = (y2 -. y1) /. (float_of_int size_y) in
-  fill_img img x1 y1 dx dy compute_int_mandelbrot;
+  fill_img img x1 y1 dx dy compute_int;
   img;
 ;;
 
-let save_frac img =
+(* The function used to save fractales in file *)
+let save_frac ?filename:(filename = g_filename) img =
   (* And this one for rgba *)
   (* save_image g_filename (Images.Rgba32 img); *)
-  save_image g_filename (Images.Rgb24 img);
+  save_image filename (Images.Rgb24 img);
 ;;
 
-
+(* A basic graphic mode : *)
 let display_frac (x1, y1) (x2, y2) res save_res =
   let x1 = ref x1 in
   let x2 = ref x2 in
   let y1 = ref y1 in
   let y2 = ref y2 in
   let img = ref (fractal_coord (!x1, !y1) (!x2, !y2) res) in
-  Printf.printf "Displaying";
   Graphics.open_graph "";
   (* And this one for rgba *)
   (* Graphic_image.draw_image (Images.Rgba32 img) 0 0; *)
   while true
   do
     Graphics.open_graph "";
+    Graphics.resize_window res res;
     Graphic_image.draw_image (Images.Rgb24 !img) 0 0;
-    Printf.printf "Rectangle; res x = (%f, %f) (%f, %f) %d\n" !x1 !y1 !x2 !y2 res;
+    Printf.printf "Rectangle; res x = (%f, %f) (%f, %f) %d%!\n" !x1 !y1 !x2 !y2 res;
     Graphics.draw_string (Printf.sprintf "Rectangle; res x = (%f, %f) (%f, %f) %d" !x1 !y1 !x2 !y2 res);
     let (size_x,size_y) = (!img.Rgb24.width, !img.Rgb24.height) in
     let status =
       let stay_in = ref true in
+      (* Select the first corner *)
       let status = ref (Graphics.wait_next_event [Graphics.Button_down ; Graphics.Key_pressed ; Graphics.Mouse_motion] ) in
       while !stay_in
       do
@@ -187,7 +215,7 @@ let display_frac (x1, y1) (x2, y2) res save_res =
 	    in
 	    (* Graphics.moveto 10 10; *)
 	    (* Graphics.draw_string (Printf.sprintf "Current : (%f, %f)" tx1 ty1); *)
-	    Printf.printf "Current : (%f, %f)\n%!" tx1 ty1;
+	    (* Printf.printf "Current : (%f, %f)\n%!" tx1 ty1; *)
 	    status := Graphics.wait_next_event [Graphics.Button_down ; Graphics.Key_pressed ; Graphics.Mouse_motion] ;
 
 	  end;
@@ -195,6 +223,7 @@ let display_frac (x1, y1) (x2, y2) res save_res =
       !status;
     in
     let (px1,py1) = (status.Graphics.mouse_x, status.Graphics.mouse_y) in
+    (* The second corner *)
     let status = Graphics.wait_next_event [Graphics.Button_down ; Graphics.Key_pressed] in
     let (px2,py2) = (status.Graphics.mouse_x, status.Graphics.mouse_y) in
     x1 := !x1 +. (float_of_int px1) /. (float_of_int size_x) *. (!x2 -. !x1);
@@ -203,14 +232,11 @@ let display_frac (x1, y1) (x2, y2) res save_res =
     y2 := !y1 +. (1. -. (float_of_int py2) /. (float_of_int size_y)) *. (!y2 -. !y1);
     
     img := fractal_coord (!x1, !y1) (!x2, !y2) res;
-    
   done;
 ;;
 
-
-save_frac( fractal_coord (-1.5, -1.) (1.2,1.) 100);;
-
 let f = fractal_coord (-1.5, -1.) (1.2,1.) 100;;
+save_frac f;;
 display_frac (-1.5, -1.) (1.2,1.) 1000 5000;;
 
 
